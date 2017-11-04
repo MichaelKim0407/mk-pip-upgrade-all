@@ -1,0 +1,13 @@
+# IDE
+.idea/
+
+# Python
+*.py[cod]
+__pycache__/
+
+# Mac
+.DS_Store
+
+# Pip
+dist/
+*.egg-info/
