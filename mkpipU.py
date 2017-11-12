@@ -42,7 +42,10 @@ class UpgradeFailed(PipUpgradeError):
 
 
 def check_pip_version(pip):
-    out = check_output([pip, "--version"], stderr=DEVNULL).decode()
+    try:
+        out = check_output([pip, "--version"], stderr=DEVNULL).decode()
+    except (FileNotFoundError, CalledProcessError):
+        raise InvalidPipError(pip)
     version = out.split()[1]
     major = int(version.split(".")[0])
     if major < PIP_MIN_VERSION:
@@ -51,7 +54,10 @@ def check_pip_version(pip):
 
 def pip_list_outdated(pip):
     def __yield():
-        out = check_output([pip, "list", "--outdated"], stderr=DEVNULL).decode()
+        try:
+            out = check_output([pip, "list", "--outdated"], stderr=DEVNULL).decode()
+        except CalledProcessError:
+            raise InvalidPipError(pip)
         for line in out.split("\n")[2:]:
             line = line.strip()
             if not line:
@@ -62,25 +68,8 @@ def pip_list_outdated(pip):
     return list(__yield())
 
 
-def pip_upgrade_all(pip):
-    print("--- Upgrading all packages for '{}' ---".format(pip))
-
+def pip_upgrade_call(pip, packages):
     try:
-        check_pip_version(pip)
-    except (FileNotFoundError, CalledProcessError):
-        raise InvalidPipError(pip)
-
-    try:
-        packages = pip_list_outdated(pip)
-    except CalledProcessError:
-        raise InvalidPipError(pip)
-    print("{} package(s) need to be upgraded".format(len(packages)))
-    if not packages:
-        return
-    print("They are: {}".format(packages))
-
-    try:
-        print("Upgrading all packages...")
         check_call(
             [pip, "install", "-U"] + packages,
             stdout=sys.stdout,
@@ -88,8 +77,22 @@ def pip_upgrade_all(pip):
         )
     except CalledProcessError as e:
         raise UpgradeFailed(e.returncode)
-    else:
-        print("Upgrade successful.")
+
+
+def pip_upgrade_all(pip):
+    print("--- Upgrading all packages for '{}' ---".format(pip))
+
+    check_pip_version(pip)
+
+    packages = pip_list_outdated(pip)
+    print("{} package(s) need to be upgraded".format(len(packages)))
+    if not packages:
+        return
+    print("They are: {}".format(packages))
+
+    print("Upgrading all packages...")
+    pip_upgrade_call(pip, packages)
+    print("Upgrade successful.")
 
 
 def main(*args):
