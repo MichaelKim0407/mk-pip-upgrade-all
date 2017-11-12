@@ -1,5 +1,5 @@
 import sys
-from subprocess import check_call, check_output, CalledProcessError
+from subprocess import check_call, check_output, CalledProcessError, DEVNULL
 
 __author__ = 'Michael'
 
@@ -42,7 +42,7 @@ class UpgradeFailed(PipUpgradeError):
 
 
 def check_pip_version(pip):
-    out = check_output([pip, "--version"]).decode()
+    out = check_output([pip, "--version"], stderr=DEVNULL).decode()
     version = out.split()[1]
     major = int(version.split(".")[0])
     if major < PIP_MIN_VERSION:
@@ -51,7 +51,7 @@ def check_pip_version(pip):
 
 def pip_list_outdated(pip):
     def __yield():
-        out = check_output([pip, "list", "--outdated"]).decode()
+        out = check_output([pip, "list", "--outdated"], stderr=DEVNULL).decode()
         for line in out.split("\n")[2:]:
             line = line.strip()
             if not line:
