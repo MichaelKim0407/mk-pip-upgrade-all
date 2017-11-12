@@ -1,5 +1,5 @@
 import sys
-from subprocess import check_call, check_output, CalledProcessError
+from subprocess import check_call, check_output, CalledProcessError, DEVNULL
 
 __author__ = 'Michael'
 
@@ -8,6 +8,14 @@ PIP_MIN_VERSION = 9
 
 class PipUpgradeError(Exception):
     pass
+
+
+class InvalidPipError(PipUpgradeError):
+    def __init__(self, path):
+        self.path = path
+
+    def __str__(self):
+        return "'{}' is not a valid pip executable".format(self.path)
 
 
 class PipVersionError(PipUpgradeError):
@@ -33,48 +41,67 @@ class UpgradeFailed(PipUpgradeError):
         )
 
 
-def check_pip_version(pip):
-    out = check_output([pip, "--version"]).decode()
-    version = out.split()[1]
-    major = int(version.split(".")[0])
-    if major < PIP_MIN_VERSION:
-        raise PipVersionError(pip, version)
+class Pip(object):
+    def __init__(self, path):
+        self.__path = path
+        self.__outdated = []
 
+    def check_version(self):
+        try:
+            out = check_output(
+                [self.__path, "--version"],
+                stderr=DEVNULL
+            ).decode()
+        except (FileNotFoundError, CalledProcessError):
+            raise InvalidPipError(self.__path)
+        version = out.split()[1]
+        major = int(version.split(".")[0])
+        if major < PIP_MIN_VERSION:
+            raise PipVersionError(self.__path, version)
 
-def pip_list_outdated(pip):
-    def __yield():
-        out = check_output([pip, "list", "--outdated"]).decode()
-        for line in out.split("\n")[2:]:
-            line = line.strip()
-            if not line:
-                continue
-            name = line.split()[0]
-            yield name
+    def list_outdated(self):
+        def __yield():
+            try:
+                out = check_output(
+                    [self.__path, "list", "--outdated"],
+                    stderr=DEVNULL
+                ).decode()
+            except CalledProcessError:
+                raise InvalidPipError(self.__path)
+            for line in out.splitlines()[2:]:
+                line = line.strip()
+                if not line:
+                    continue
+                name = line.split()[0]
+                yield name
 
-    return list(__yield())
+        self.__outdated = list(__yield())
+        return self.__outdated
 
+    def upgrade(self, packages=None):
+        if packages is None:
+            packages = self.__outdated
+        try:
+            check_call(
+                [self.__path, "install", "-U"] + packages,
+                stdout=sys.stdout,
+                stderr=sys.stderr
+            )
+        except CalledProcessError as e:
+            raise UpgradeFailed(e.returncode)
 
-def pip_upgrade_all(pip):
-    print("--- Upgrading all packages for '{}' ---".format(pip))
+    def all(self):
+        print("--- Upgrading all packages for '{}' ---".format(self.__path))
+        self.check_version()
 
-    check_pip_version(pip)
+        self.list_outdated()
+        print("{} package(s) need to be upgraded".format(len(self.__outdated)))
+        if not self.__outdated:
+            return
+        print("They are: {}".format(self.__outdated))
 
-    packages = pip_list_outdated(pip)
-    print("{} package(s) need to be upgraded".format(len(packages)))
-    if not packages:
-        return
-    print("They are: {}".format(packages))
-
-    try:
         print("Upgrading all packages...")
-        check_call(
-            [pip, "install", "-U"] + packages,
-            stdout=sys.stdout,
-            stderr=sys.stderr
-        )
-    except CalledProcessError as e:
-        raise UpgradeFailed(e.returncode)
-    else:
+        self.upgrade()
         print("Upgrade successful.")
 
 
@@ -84,7 +111,7 @@ def main(*args):
 
     for pip in args:
         try:
-            pip_upgrade_all(pip)
+            Pip(pip).all()
         except PipUpgradeError as e:
             print(str(e), file=sys.stderr)
 
