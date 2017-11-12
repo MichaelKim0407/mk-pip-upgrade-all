@@ -58,7 +58,7 @@ def pip_list_outdated(pip):
             out = check_output([pip, "list", "--outdated"], stderr=DEVNULL).decode()
         except CalledProcessError:
             raise InvalidPipError(pip)
-        for line in out.split("\n")[2:]:
+        for line in out.splitlines()[2:]:
             line = line.strip()
             if not line:
                 continue
