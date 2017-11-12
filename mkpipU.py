@@ -10,6 +10,14 @@ class PipUpgradeError(Exception):
     pass
 
 
+class InvalidPipError(PipUpgradeError):
+    def __init__(self, path):
+        self.path = path
+
+    def __str__(self):
+        return "'{}' is not a valid pip executable".format(self.path)
+
+
 class PipVersionError(PipUpgradeError):
     def __init__(self, path, version):
         self.path = path
@@ -57,9 +65,15 @@ def pip_list_outdated(pip):
 def pip_upgrade_all(pip):
     print("--- Upgrading all packages for '{}' ---".format(pip))
 
-    check_pip_version(pip)
+    try:
+        check_pip_version(pip)
+    except (FileNotFoundError, CalledProcessError):
+        raise InvalidPipError(pip)
 
-    packages = pip_list_outdated(pip)
+    try:
+        packages = pip_list_outdated(pip)
+    except CalledProcessError:
+        raise InvalidPipError(pip)
     print("{} package(s) need to be upgraded".format(len(packages)))
     if not packages:
         return
