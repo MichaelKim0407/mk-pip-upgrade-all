@@ -5,6 +5,9 @@ __author__ = 'Michael'
 
 PIP_MIN_VERSION = 9
 
+print("""`mkpipU` has been merged into `mklibpy-bin` (v0.8).
+Please uninstall this package and install `mklibpy-bin` instead.""", file=sys.stderr)
+
 
 class PipUpgradeError(Exception):
     pass
